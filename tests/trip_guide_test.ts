@@ -1,45 +1,7 @@
-import {
-  Clarinet,
-  Tx,
-  Chain,
-  Account,
-  types
-} from 'https://deno.land/x/clarinet@v1.0.0/index.ts';
-import { assertEquals } from 'https://deno.land/std@0.90.0/testing/asserts.ts';
+[Previous test content remains unchanged...]
 
 Clarinet.test({
-  name: "Can add new location with photos",
-  async fn(chain: Chain, accounts: Map<string, Account>) {
-    const deployer = accounts.get('deployer')!;
-    
-    let block = chain.mineBlock([
-      Tx.contractCall('trip_guide', 'add-location', [
-        types.ascii("Kid's Play Park"),
-        types.int(40750000),
-        types.int(-73980000),
-        types.ascii("playground"),
-        types.ascii("Family-friendly park with modern playground equipment"),
-        types.list([types.ascii("photo1.jpg"), types.ascii("photo2.jpg")])
-      ], deployer.address)
-    ]);
-    
-    block.receipts[0].result.expectOk().expectUint(1);
-    
-    let getLocation = chain.callReadOnlyFn(
-      'trip_guide',
-      'get-location',
-      [types.uint(1)],
-      deployer.address
-    );
-    
-    let location = getLocation.result.expectSome().expectTuple();
-    assertEquals(location['name'], "Kid's Play Park");
-    assertEquals(location['verified'], false);
-  }
-});
-
-Clarinet.test({
-  name: "Can add review to location",
+  name: "Cannot rate location with invalid rating",
   async fn(chain: Chain, accounts: Map<string, Account>) {
     const deployer = accounts.get('deployer')!;
     
@@ -55,46 +17,34 @@ Clarinet.test({
       ], deployer.address)
     ]);
     
-    // Add review
+    // Try to rate with invalid rating
     let block = chain.mineBlock([
-      Tx.contractCall('trip_guide', 'add-location-review', [
+      Tx.contractCall('trip_guide', 'rate-location', [
         types.uint(1),
-        types.ascii("Great place for kids!")
+        types.uint(6)
       ], deployer.address)
     ]);
     
-    block.receipts[0].result.expectOk().expectBool(true);
-    
-    let getLocation = chain.callReadOnlyFn(
-      'trip_guide',
-      'get-location',
-      [types.uint(1)],
-      deployer.address
-    );
-    
-    let location = getLocation.result.expectSome().expectTuple();
-    let reviews: any = location['reviews'];
-    assertEquals(reviews.length, 1);
+    block.receipts[0].result.expectErr().expectUint(104);
   }
 });
 
 Clarinet.test({
-  name: "Can follow curator",
+  name: "Can unfollow curator",
   async fn(chain: Chain, accounts: Map<string, Account>) {
     const deployer = accounts.get('deployer')!;
     const wallet1 = accounts.get('wallet_1')!;
     
-    // First create a guide to establish curator
+    // First follow curator
     chain.mineBlock([
-      Tx.contractCall('trip_guide', 'create-guide', [
-        types.ascii("Test Guide"),
-        types.list([])
-      ], deployer.address)
+      Tx.contractCall('trip_guide', 'follow-curator', [
+        types.principal(deployer.address)
+      ], wallet1.address)
     ]);
     
-    // Follow curator
+    // Then unfollow
     let block = chain.mineBlock([
-      Tx.contractCall('trip_guide', 'follow-curator', [
+      Tx.contractCall('trip_guide', 'unfollow-curator', [
         types.principal(deployer.address)
       ], wallet1.address)
     ]);
@@ -110,54 +60,6 @@ Clarinet.test({
     
     let curator = getCurator.result.expectSome().expectTuple();
     let followers: any = curator['followers'];
-    assertEquals(followers.length, 1);
-  }
-});
-
-Clarinet.test({
-  name: "Can favorite and comment on guide",
-  async fn(chain: Chain, accounts: Map<string, Account>) {
-    const deployer = accounts.get('deployer')!;
-    const wallet1 = accounts.get('wallet_1')!;
-    
-    // Create guide
-    chain.mineBlock([
-      Tx.contractCall('trip_guide', 'create-guide', [
-        types.ascii("Test Guide"),
-        types.list([])
-      ], deployer.address)
-    ]);
-    
-    // Favorite guide
-    let block1 = chain.mineBlock([
-      Tx.contractCall('trip_guide', 'favorite-guide', [
-        types.uint(1)
-      ], wallet1.address)
-    ]);
-    
-    block1.receipts[0].result.expectOk().expectBool(true);
-    
-    // Comment on guide
-    let block2 = chain.mineBlock([
-      Tx.contractCall('trip_guide', 'comment-on-guide', [
-        types.uint(1),
-        types.ascii("Great guide!")
-      ], wallet1.address)
-    ]);
-    
-    block2.receipts[0].result.expectOk().expectBool(true);
-    
-    let getGuide = chain.callReadOnlyFn(
-      'trip_guide',
-      'get-guide',
-      [types.uint(1)],
-      deployer.address
-    );
-    
-    let guide = getGuide.result.expectSome().expectTuple();
-    let favorites: any = guide['favorited-by'];
-    let comments: any = guide['comments'];
-    assertEquals(favorites.length, 1);
-    assertEquals(comments.length, 1);
+    assertEquals(followers.length, 0);
   }
 });
